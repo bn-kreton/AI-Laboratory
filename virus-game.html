@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Virus Hunter | صائد الفيروسات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; 
+            background: #050507; 
+            color: white; 
+            font-family: 'Cairo', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* عنوان اللعبة في المنتصف */
+        .game-title {
+            color: #d4af37;
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+            letter-spacing: 2px;
+        }
+
+        /* منطقة الإحصائيات */
+        .ui-container {
+            width: 800px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 5px;
+            padding: 0 10px;
+        }
+
+        .stats-left { text-align: right; color: #d4af37; font-size: 1.2rem; }
+        .stats-right { text-align: left; color: #ffef00; font-size: 1.2rem; }
+        .hp-text { color: #ff4d4d; font-weight: bold; }
+
+        canvas { 
+            border: 2px solid #d4af37; 
+            background: rgba(10, 10, 15, 0.95);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <h1 class="game-title">VIRUS HUNTER</h1>
+
+    <div class="ui-container">
+        <div class="stats-left">
+            <div class="hp-text">HP: <span id="hpValue">5</span></div>
+            <div>Score: <span id="scoreValue">0</span></div>
+        </div>
+        
+        <div class="stats-right">
+            الوقت: <span id="timerValue">0</span>s
+        </div>
+    </div>
+        <!-- واجهة البدء -->
+        <div id="startScreen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 7, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;">
+        <h2 style="color: #d4af37; font-size: 2.5rem; margin-bottom: 20px;">مستعد للحماية؟</h2>
+        <button onclick="startGame()" style="padding: 15px 40px; font-size: 1.5rem; background: transparent; color: #d4af37; border: 2px solid #d4af37; border-radius: 10px; cursor: pointer; font-family: 'Cairo'; transition: 0.3s;">ابدأ العملية</button>
+        <p style="color: #a0a0a0; margin-top: 20px;">التحرك: A, D أو الأسهم | إطلاق: Space | اندفاع: نقرة مزدوجة</p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800; canvas.height = 500; // تقليل الارتفاع قليلاً ليتناسب مع العنوان
+
+        let score = 0; let hp = 7; let secondsElapsed = 0;
+        let gameActive = false; let difficultyFactor = 0;
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none'; // إخفاء شاشة البداية
+            gameActive = true;
+            spawnEnemy(); // بدء ظهور الأعداء
+            draw(); // بدء حلقة الرسم
+        }
+
+
+        const player = {
+            x: canvas.width / 2 - 20,
+            y: canvas.height - 60,
+            size: 40,
+            speed: 4,
+            dashDistance: 70
+        };
+
+        let lastLeftTime = 0;
+        let lastRightTime = 0;
+        const doubleTapThreshold = 300; // نص ثانية تقريباً (300-500ms)
+
+        const bullets = [];
+        const enemies = [];
+        const keys = {};
+
+        // نظام التحكم المطور
+        window.addEventListener('keydown', e => {
+            // منع التكرار التلقائي عند تعليق الضغط على الزر
+            if (e.repeat) return; 
+
+            keys[e.code] = true;
+
+            // Dash لليسار
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                let currentTime = Date.now();
+                if (currentTime - lastLeftTime < doubleTapThreshold) {
+                    player.x -= player.dashDistance;
+                }
+                lastLeftTime = currentTime;
+            }
+
+            // Dash لليمين
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                let currentTime = Date.now();
+                if (currentTime - lastRightTime < doubleTapThreshold) {
+                    player.x += player.dashDistance;
+                }
+                lastRightTime = currentTime;
+            }
+        });
+
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        // عداد الوقت
+        setInterval(() => {
+            if (gameActive) {
+                secondsElapsed++;
+                document.getElementById('timerValue').innerText = secondsElapsed;
+                difficultyFactor = secondsElapsed * 0.05; 
+
+                // شرط الفوز عند 60 ثانية
+                if (secondsElapsed >= 53) {
+                    gameWin();
+                }
+            }
+        }, 1000);
+
+        function spawnEnemy() {
+            if(!gameActive) return;
+
+            // 1. تحديد حجم عشوائي (بين 20 و 50 بكسل)
+            let randomSize = Math.floor(Math.random() * (50 - 20 + 1)) + 20;
+
+            // 2. تحديد سرعة عشوائية (تعتمد على الحجم: الصغير أسرع والكبير أبطأ قليلاً)
+            // السرعة الأساسية + عامل عشوائي + عامل الصعوبة الزمني
+            let baseSpeed = 1 + difficultyFactor;
+            let randomSpeed = baseSpeed + (Math.random() * 1); 
+            if (randomSize < 30) randomSpeed += 0.1; // الفيروسات الصغيرة جداً تأخذ دفعة سرعة إضافية
+
+            // 3. تحديد النقاط (Score) بناءً على الحجم أو بشكل عشوائي (بين 10 و 20)
+            let randomScoreValue = Math.floor(Math.random() * (20 - 10 + 1)) + 10;
+
+            enemies.push({
+                x: Math.random() * (canvas.width - randomSize),
+                y: -50,
+                size: randomSize,
+                speed: randomSpeed,
+                scoreValue: randomScoreValue // تخزين قيمة النقاط داخل كائن الفيروس
+            });
+
+            let spawnRate = Math.max(400, 1600 - (secondsElapsed * 15));
+            setTimeout(spawnEnemy, spawnRate);
+        }
+
+        function update() {
+            if(!gameActive) return;
+
+            if ((keys['ArrowLeft'] || keys['KeyA']) && player.x > 0) player.x -= player.speed;
+            if ((keys['ArrowRight'] || keys['KeyD']) && player.x < canvas.width - player.size) player.x += player.speed;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
+
+            if (keys['Space']) {
+                if(bullets.length === 0 || bullets[bullets.length-1].y < canvas.height - 120) {
+                    bullets.push({ x: player.x + player.size/2, y: player.y, speed: 9 });
+                }
+            }
+
+            bullets.forEach((b, i) => {
+                b.y -= b.speed;
+                if(b.y < 0) bullets.splice(i, 1);
+            });
+
+            enemies.forEach((en, i) => {
+                en.y += en.speed;
+                
+                // تصادم اللاعب مع الفيروس (ينقص دم فوراً)
+                if (player.x < en.x + en.size && player.x + player.size > en.x &&
+                    player.y < en.y + en.size && player.y + player.size > en.y) {
+                    enemies.splice(i, 1);
+                    decreaseHP();
+                }
+
+                // ابحث عن هذا الجزء داخل دالة update وقم بتعديله:
+                bullets.forEach((b, bi) => {
+                    if(b.x > en.x && b.x < en.x + en.size && b.y < en.y + en.size && b.y > en.y) {
+                        score += en.scoreValue; // إضافة قيمة النقاط العشوائية الخاصة بهذا الفيروس تحديداً
+                        enemies.splice(i, 1);
+                        bullets.splice(bi, 1);
+                        document.getElementById('scoreValue').innerText = score;
+                    }
+                });
+
+                if(en.y > canvas.height) {
+                    enemies.splice(i, 1);
+                    decreaseHP();
+                }
+            });
+        }
+
+        function decreaseHP() {
+            hp--;
+            document.getElementById('hpValue').innerText = hp;
+            if(hp <= 0) gameOver();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // رسم اللاعب (مركبة ذهبية)
+            ctx.fillStyle = "#d4af37";
+            ctx.beginPath();
+            ctx.moveTo(player.x + player.size/2, player.y);
+            ctx.lineTo(player.x, player.y + player.size);
+            ctx.lineTo(player.x + player.size, player.y + player.size);
+            ctx.fill();
+
+            // رسم الرصاص
+            ctx.fillStyle = "#00ffff";
+            bullets.forEach(b => ctx.fillRect(b.x-2, b.y, 4, 15));
+
+            // رسم الفيروسات
+            enemies.forEach(en => {
+                ctx.fillStyle = "#ff4d4d";
+                ctx.beginPath();
+                ctx.arc(en.x + en.size/2, en.y + en.size/2, en.size/2, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        function gameOver() {
+            gameActive = false;
+            alert("⚠️ تـم اخـتـراق الـنـظـام! \nالنقاط: " + score + "\nالصمود: " + secondsElapsed + " ثانية");
+            location.reload();
+        }
+
+        function gameWin() {
+            gameActive = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            alert("🏆 مبروك! تم القضاء على الفايروس بنجاح 🏆\n\n" + 
+                "تفاصيل العملية:\n" +
+                "------------------\n" +
+                "💰 إجمالي النقاط: " + score + "\n" +
+                "⏱️ الوقت المستغرق: " + secondsElapsed + " ثانية\n" +
+                "❤️ الصحة المتبقية: " + hp);
+            location.reload(); 
+        }
+
+    </script>
+</body>
+</html>
