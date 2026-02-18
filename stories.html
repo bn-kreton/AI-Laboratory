@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrative Archives | أرشيف القصص</title>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+
+        /* تغيير لون التحديد للموقع بالكامل */
+        ::selection {
+            background-color: #e9e05ba2; /* لون أصفر فاقع وواضح */
+            color: #000000;            /* لون النص عند التحديد يصبح أسود */
+        }
+
+        /* للمتصفحات القديمة مثل Firefox */
+        ::-moz-selection {
+            background-color: #ffef00;
+            color: #000000;
+        }
+
+
+        :root {
+            --story-bg: #0a0a0c;
+            --sepia-text: #f4ecd8;
+            --accent-gold: #d4af37;
+            --shadow-red:  #d83636;
+        }
+
+        /* تعديل لإخفاء شريط التمرير المشوه للمنظر */
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background-color: var(--story-bg);
+            color: var(--sepia-text);
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+            /* إخفاء الشريط في متصفحات مختلفة */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+
+        body::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+
+        .background-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(40,40,50,1) 0%, rgba(10,10,12,1) 100%);
+            z-index: -1;
+        }
+
+        .story-container {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            min-height: 100vh; padding: 50px 20px;
+        }
+
+        .dialogue-box {
+            width: 85%; max-width: 900px;
+            background: rgba(20, 20, 25, 0.9);
+            border: 2px solid var(--accent-gold);
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
+            position: relative;
+            transition: 0.5s;
+        }
+
+        .author-name {
+            position: absolute; top: -20px; right: 30px;
+            background: var(--accent-gold);
+            color: black; padding: 5px 20px;
+            font-weight: bold; border-radius: 5px;
+            font-size: 1.1rem;
+        }
+
+        /* تعديل نص الترحيب والنصوص القصصية لاستخدام خط أميري */
+        #welcome-text, #story-display {
+            font-family: 'Amiri', serif;
+            font-size: 1.6rem;
+            line-height: 1.9;
+            text-align: justify;
+        }
+
+        .part-header {
+            color: var(--accent-gold);
+            display: block;
+            margin: 25px 0 10px 0;
+            font-size: 1.7rem;
+            border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+            font-family: 'Amiri', serif;
+        }
+
+        .btn-group {
+            display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap;
+        }
+
+        /* التنسيق الأساسي للزر */
+        .nav-btn {
+            background: transparent; 
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+            padding: 10px 20px; 
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem; 
+            font-family: 'Cairo', sans-serif;
+            display: inline-block;
+            border-radius: 12px;
+            
+            /* منع الغبش والاهتزاز */
+            -webkit-font-smoothing: antialiased;
+            transform: translateZ(0) scale(1);
+            backface-visibility: hidden;
+            
+            /* توهج خفيف في الحالة العادية */
+            box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
+            
+            /* حركة ناعمة جداً لكل الخصائص */
+            transition: all 0.25s ease-in-out;
+        }
+
+        /* التأثير عند تمرير الماوس (Hover) */
+        .nav-btn:hover {
+            background: var(--accent-gold); 
+            color: black !important;
+            
+            /* بدلاً من scale كبير يسبب غبش، نستخدم تكبيراً ضئيلاً جداً مع ظل */
+            transform: scale(1.02) translateZ(0); 
+            
+            /* توهج قوي يعطي إيحاء بالبروز */
+            box-shadow: 0 0 15px var(--accent-gold), 0 0 30px rgba(212, 175, 55, 0.5);
+            border-color: var(--accent-gold);
+        }
+
+        /* التنسيق المشترك لجميع الأزرار */
+        .special-nav {
+            background: transparent; 
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+            padding: 10px 20px; 
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem; 
+            font-family: 'Cairo', sans-serif;
+            display: inline-block;
+            border-radius: 12px;
+            position: relative; /* يضمن بقاء الزر في مكانه */
+            
+            /* منع الغبش والاهتزاز */
+            -webkit-font-smoothing: antialiased;
+            transform: translateZ(0) scale(1);
+            backface-visibility: hidden;
+            
+            /* حركة ناعمة جداً */
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                        background-color 0.3s ease, 
+                        box-shadow 0.3s ease, 
+                        color 0.3s ease;
+        }
+
+        /* تأثير الماوس العام (الذهبي) */
+        .special-nav:hover {
+            background: var(--accent-gold); 
+            color: black !important;
+            /* التكبير هنا لا يؤثر على العناصر المجاورة */
+            transform: scale(1.05) translateZ(0); 
+            box-shadow: 0 0 15px var(--accent-gold), 0 0 30px rgba(212, 175, 55, 0.4);
+            border-color: var(--accent-gold);
+        }
+
+        /* الزر الأحمر (ظلال سان ستيل) */
+        .special-nav[style*="border-color: #ff4d4d"] {
+            transition: all 0.3s ease;
+        }
+
+        /* تخصيص الزر الأحمر (ظلال سان ستيل) */
+        .special-nav[style*="border-color: #ff4d4d"]:hover {
+            background: #59ff4d !important;
+            color: #000 !important;
+            /* نفس التكبير ليكون متناسقاً */
+            transform: scale(1.05) translateZ(0); 
+            box-shadow: 0 0 15px #59ff4d, 0 0 30px rgba(255, 77, 77, 0.5);
+            border-color: #59ff4d !important;
+        }
+
+        .close-nav {
+            background: transparent; 
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+            padding: 10px 20px; 
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem; 
+            font-family: 'Cairo', sans-serif;
+            display: inline-block;
+            border-radius: 12px;
+            
+            /* منع الغبش والاهتزاز */
+            -webkit-font-smoothing: antialiased;
+            transform: translateZ(0) scale(1);
+            backface-visibility: hidden;
+            
+            /* توهج خفيف في الحالة العادية */
+            box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
+            
+            /* حركة ناعمة جداً لكل الخصائص */
+            transition: all 0.25s ease-in-out;
+        }
+
+        .close-nav:hover {
+            background: var(--shadow-red); 
+            color: black !important;
+            
+            /* بدلاً من scale كبير يسبب غبش، نستخدم تكبيراً ضئيلاً جداً مع ظل */
+            transform: scale(1.02) translateZ(0); 
+            
+            /* توهج قوي يعطي إيحاء بالبروز */
+            box-shadow: 0 0 15px var(--shadow-red), 0 0 30px rgba(212, 175, 55, 0.5);
+            border-color: var(--shadow-red);
+        }
+
+        .back-home {
+            position: fixed; top: 20px; left: 20px;
+            color: var(--accent-gold); text-decoration: none;
+            font-size: 0.8rem; border-bottom: 1px solid var(--accent-gold);
+            z-index: 100;
+        }
+
+        .hidden { display: none; }
+        .fade-in { animation: fadeIn 0.8s forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="background-overlay"></div>
+    <a href="index.html" class="back-home">← العودة للنظام</a>
+
+    <div class="story-container">
+        
+        <div id="intro-screen" class="dialogue-box fade-in">
+            <div class="author-name">الأرشيف السردي</div>
+            <p id="welcome-text"></p>
+            <div class="btn-group" id="nav-options" style="opacity:0">
+                <button class="nav-btn" onclick="showSanSteel()">استكشاف قصة "ظلال سان ستيل"</button>
+                <button class="close-nav">قصة "الهاوية"</button>
+            </div>
+        </div>
+
+        <div id="story-screen" class="dialogue-box hidden">
+            <div class="author-name">ظلال سان ستيل</div>
+            <div id="story-display">
+                <span class="part-header">الجزء الاول: الهدوء الذي يسبق العاصفة</span>
+                الخوف والالم والرعب، لم يبدأ بصرخة، بل بدأ بصمت. في مدينة " سان ستيل "، المدينة التي لا تنام، بدأ الموت يطرق ابوابها بهدوء غريب، وكان الناس يرحلون بسلام وهم غارقون في احلامهم، وانتشرت شائعات بعنوان " النوم الميت " وسرعان ما تطورت أحداث الموت عند النوم إلى... تحول الجار الى وحش يتربص بجارة ليفرغ غضبه عليه أو لينتقم منه، وارتفاع في مشاكل الاسرية.. وبعدها احتجاجات وموجة من الغضب والعدوانية غير المبررة من سكان المدينة، فأشتعلت الشوارع بالأحتجاجات والسرقات والجرائم، وكأن روح المدينة قد سكنت بظلام لا يرى.
+
+                <span class="part-header">الجزء الثاني: ليلة الانكسار</span>
+                في خضم هذا التفكك الاجتماعي، يظهر "وحيد" ليواجه الفوضى، فانضم إلى صفوف الشرطة لينقذ ما تبقى من النظام، لكن في ليلته الاولى عند وصوله الى مركز الشرطه وجدة محطم كأن الروح بهذا المكان انطفأت.. ذهب "وحيد" ليتفقد المركز لكن سرعان ما ظهر شيء من خلف ظلال، كائن هلامي قاتم متجه نحو "وحيد" ليقتله لكن وحيد هرب مسرعاً الى سيارة وذهب بعيداً عن الوحش هلامي لكن عندما كان في الطريق رأى منظرا يقشعر البدن لرؤيته، المنظر كان مخلوقات مظلمة لا تعرف الرحمة وتفتك بكل ما هو حي!. الرعب كان يملأ وجه وحيد لان عاد من مركز الشرطة تاركاً خلفه زملاؤه الذين تعاهدوا على الحماية أصبحوا ضحايا في ثوانٍ معدودة بسبب الظلال المرعبة التي لم يسبق له وراءها.
+
+                <span class="part-header">الجزء الثالث: رحلة كشف المستور</span>
+                عاد وحيد إلى منزله، لكنه لم يعد الشخص ذاته... أصبح محاصراً بين جدران بيته وخوفه من الخارج، يراقب العالم وهو يتحول إلى كابوس مستمر... من هنا، تنطلق رحلة نجاة وحيد؛ رحلةٌ تتجاوز مجرد البقاء على قيد الحياة، لتصبح سعياً محموماً وراء الحقيقة:<br><br>
+                <b>ما هو منشأ هذه الظلال؟ ولماذا فقد البشر عقولهم قبل ظهور الوحوش؟</b><br><br>
+                في مدينة "سان ستيل"، لم يعد العدو هو من يملك السلاح، بل هو ذاك الذي يختبئ في عتمة الزوايا.. وفي أعماق النفوس.
+            </div>
+            
+            <div class="btn-group">
+                <a href="https://bn-kreton.itch.io/" target="_blank" class="special-nav" style="border-color: #ff4d4d; color: #ff4d4d;">جرب النسخة المجانية من لعبة ظلال سان ستيل</a>
+                <button class="nav-btn" onclick="goBack()">رجوع الى صفحة القصص</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const welcomeStr = "مرحباً بك في ركن الحكايات.. هنا حيث تتحول الأكواد إلى مشاعر، والبيانات إلى خيال. كل قصة تجدها هنا هي رحلة في عوالمي الخاصة التي صممتها لأجلك. اختر قصة لتبدأ الاستكشاف...";
+        let i = 0;
+
+        function typeIntro() {
+            if (i < welcomeStr.length) {
+                document.getElementById('welcome-text').innerHTML += welcomeStr.charAt(i);
+                i++;
+                setTimeout(typeIntro, 35);
+            } else {
+                document.getElementById('nav-options').style.opacity = "1";
+                document.getElementById('nav-options').classList.add('fade-in');
+            }
+        }
+
+        function showSanSteel() {
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('story-screen').classList.remove('hidden');
+            document.getElementById('story-screen').classList.add('fade-in');
+            window.scrollTo(0, 0);
+        }
+
+        function goBack() {
+            document.getElementById('story-screen').classList.add('hidden');
+            document.getElementById('intro-screen').classList.remove('hidden');
+        }
+
+        window.onload = typeIntro;
+    </script>
+</body>
+</html>
