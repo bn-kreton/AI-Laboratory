@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Drift 3D | الـبـعـد الـسـادس</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; background: #000; overflow: hidden; 
+            font-family: 'Orbitron', sans-serif; color: #fff;
+            display: flex; align-items: center; justify-content: center; min-height: 100vh;
+        }
+
+        #game-container {
+            position: relative; width: 1000px; height: 600px;
+            background: radial-gradient(circle, #1a1a2e 0%, #000 100%);
+            border: 4px solid #333; box-shadow: 0 0 50px #0ff;
+            overflow: hidden; perspective: 1000px;
+        }
+
+        canvas { display: block; }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.8); z-index: 10; transition: 0.5s;
+        }
+
+        .hidden { display: none !important; }
+
+        #ui {
+            position: absolute; top: 20px; width: 100%;
+            display: flex; justify-content: space-around;
+            font-size: 1.5rem; color: #0ff; text-shadow: 0 0 10px #0ff;
+            pointer-events: none; z-index: 5;
+        }
+
+        button {
+            padding: 20px 50px; font-family: 'Orbitron'; font-size: 2rem;
+            background: transparent; border: 3px solid #0ff; color: #0ff;
+            cursor: pointer; box-shadow: 0 0 20px #0ff; transition: 0.3s;
+        }
+
+        button:hover { background: #0ff; color: #000; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ui">
+            <div>SCORE: <span id="score">0</span></div>
+            <div>SPEED: <span id="speed">1.0</span>x</div>
+        </div>
+
+        <canvas id="stage"></canvas>
+
+        <div id="start-screen" class="overlay">
+            <h1 style="font-size: 4rem; margin-bottom: 20px; color: #0ff; text-shadow: 0 0 20px #0ff;">NEON DRIFT</h1>
+            <p style="margin-bottom: 30px; letter-spacing: 2px;">تحرك بالفأرة لتفادي العقبات في البعد الثالث</p>
+            <audio id="bgMusic" loop></audio>
+            <button onclick="startGame()">ENTER DIMENSION</button>
+        </div>
+
+        <div id="death-screen" class="overlay hidden">
+            <h1 style="color: #f0f; font-size: 3.5rem;">CRITICAL ERROR</h1>
+            <p id="final-score" style="font-size: 1.5rem; margin-bottom: 20px;"></p>
+            <button onclick="location.reload()" style="border-color: #f0f; color: #f0f; box-shadow: 0 0 20px #f0f;">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('stage');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1000; canvas.height = 600;
+
+        let gameActive = false;
+        let score = 0;
+        let speed = 5;
+        let obstacles = [];
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+
+        // ملاحقة الفأرة
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        // 1. قائمة الموسيقى (ضع روابط ملفاتك هنا)
+        const playlist = [
+            "music1.mp3",
+            "music2.mp3",
+            "music3.mp3",
+            "music4.mp3",
+            "music5.mp3"
+        ];
+
+        function startGame() {
+            const music = document.getElementById('bgMusic');
+
+            // 2. اختيار مقطع عشوائي من القائمة
+            const randomTrack = playlist[Math.floor(Math.random() * playlist.length)];
+            
+            // 3. تعيين الرابط المختار للمشغل
+            music.src = randomTrack;
+
+            // 4. البدء بالتشغيل
+            music.play().catch(e => console.log("تحتاج للتفاعل مع الصفحة أولاً"));
+            music.volume = 0.4;
+
+            document.getElementById('start-screen').classList.add('hidden');
+            gameActive = true;
+            animate();
+        }
+
+        class Obstacle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                // تبدأ من العمق (z=1000) في أماكن عشوائية
+                this.x = (Math.random() - 0.5) * 2000;
+                this.y = (Math.random() - 0.5) * 2000;
+                this.z = 1000; 
+                this.size = 20;
+                this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            }
+            update() {
+                this.z -= speed; // تقترب من الشاشة
+                if (this.z <= 1) {
+                    // إذا وصلت للشاشة، هل اصطدمت باللاعب؟
+                    const screenX = (this.x / 1) + canvas.width / 2;
+                    const screenY = (this.y / 1) + canvas.height / 2;
+                    
+                    // فحص التصادم التقريبي بالاعتماد على موقع الفأرة (المركبة)
+                    let dx = screenX - mouseX;
+                    let dy = screenY - mouseY;
+                    if (Math.sqrt(dx*dx + dy*dy) < 60) {
+                        gameOver();
+                    }
+                    this.reset();
+                    score += 10;
+                }
+            }
+            draw() {
+                // تحويل الإحداثيات من 3D إلى 2D
+                const scale = 400 / this.z; 
+                const x2d = (this.x * scale) + canvas.width / 2;
+                const y2d = (this.y * scale) + canvas.height / 2;
+                const s2d = this.size * scale;
+
+                if (this.z > 0) {
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = s2d / 2;
+                    ctx.shadowColor = this.color;
+                    ctx.fillRect(x2d - s2d/2, y2d - s2d/2, s2d, s2d);
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        // إنشاء مجموعة عوائق
+        for(let i=0; i<40; i++) obstacles.push(new Obstacle());
+
+        function drawTunnel() {
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 2;
+            for(let i=0; i<10; i++) {
+                let z = ((Date.now() / 10) % 100) + (i * 100);
+                let scale = 400 / z;
+                let w = canvas.width * scale;
+                let h = canvas.height * scale;
+                ctx.strokeRect(canvas.width/2 - w/2, canvas.height/2 - h/2, w, h);
+            }
+        }
+
+        function drawShip() {
+            // رسم "مؤشر" السفينة (Crosshair)
+            ctx.strokeStyle = '#0ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(mouseX, mouseY, 30, 0, Math.PI*2);
+            ctx.moveTo(mouseX - 40, mouseY); ctx.lineTo(mouseX + 40, mouseY);
+            ctx.moveTo(mouseX, mouseY - 40); ctx.lineTo(mouseX, mouseY + 40);
+            ctx.stroke();
+            
+            // وهج السفينة
+            ctx.shadowBlur = 20; ctx.shadowColor = '#0ff';
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+            ctx.fillRect(mouseX-10, mouseY-10, 20, 20);
+            ctx.shadowBlur = 0;
+        }
+
+        function update() {
+            speed += 0.002;
+            obstacles.forEach(obs => obs.update());
+            document.getElementById('score').innerText = score;
+            document.getElementById('speed').innerText = (speed/5).toFixed(1);
+        }
+
+        function animate() {
+            if(!gameActive) return;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawTunnel();
+            obstacles.sort((a, b) => b.z - a.z); // رسم الأبعد أولاً
+            obstacles.forEach(obs => {
+                obs.draw();
+            });
+            drawShip();
+            update();
+            requestAnimationFrame(animate);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            document.getElementById('death-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = `DISTANCE REACHED: ${score}`;
+        }
+
+    </script>
+</body>
+</html>
