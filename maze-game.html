@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>MAZE ESCAPE | الهرب من المتاهة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; background: #050507; color: white; 
+            font-family: 'Cairo', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        .game-header { text-align: center; margin-bottom: 10px; width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; box-sizing: border-box;}
+        .game-title h1 { color: #d4af37; margin: 0; font-size: 1.8rem; text-shadow: 0 0 10px rgba(212, 175, 55, 0.5); }
+        
+        .stats { color: #ff4d4d; font-size: 1.2rem; font-weight: bold; }
+        .level-info { color: #d4af37; font-size: 1.1rem; }
+
+        #maze-container {
+            position: relative;
+            border: 3px solid #d4af37;
+            background: #0f0f12;
+            padding: 5px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        canvas { display: block; }
+
+        /* أزرار التحكم (تم تعديل الترتيب) */
+        .controls {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: repeat(3, 70px);
+            gap: 10px;
+        }
+
+        .btn {
+            width: 70px; height: 70px;
+            background: rgba(212, 175, 55, 0.05);
+            border: 2px solid #d4af37;
+            color: #d4af37;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; cursor: pointer;
+            user-select: none; transition: 0.2s;
+        }
+
+        .btn:active { background: #d4af37; color: black; transform: scale(0.9); }
+        .up { grid-column: 2; }
+        .left { grid-column: 1; grid-row: 2; } /* تم التعديل */
+        .right { grid-column: 3; grid-row: 2; } /* تم التعديل */
+        .down { grid-column: 2; grid-row: 2; }
+
+        .overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-header">
+        <div class="level-info">المرحلة: <span id="currentLevel">1</span>/5</div>
+        <div class="game-title"><h1>MAZE ESCAPE</h1></div>
+        <div class="stats">الوقت: <span id="timer">50</span></div>
+    </div>
+
+    <div id="maze-container">
+        <canvas id="mazeCanvas"></canvas>
+        
+        <div id="msgOverlay" class="overlay">
+            <h2 id="msgTitle" style="color:#d4af37; font-size: 2rem;"></h2>
+            <p id="msgDesc" style="color: white;"></p>
+            <button onclick="location.reload()" style="margin-top:20px; padding:10px 30px; cursor:pointer; font-family:'Cairo'; background:#d4af37; border:none; border-radius:5px; font-weight:bold;">إعادة المحاولة</button>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="btn up" onmousedown="move('up')">▲</div>
+        <div class="btn left" onmousedown="move('right')">▶</div>
+        <div class="btn down" onmousedown="move('down')">▼</div>
+        <div class="btn right" onmousedown="move('left')">◀</div>
+        
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        const tileSize = 30; // تصغير الحجم قليلاً لتناسب المتاهات الأكبر
+
+        let time = 50;
+        let currentLevel = 0;
+        let gameActive = true;
+        let player = { x: 1, y: 1 };
+
+        // تصميم الـ 5 مراحل (1 جدار، 0 ممر، 2 مخرج)
+        const levels = [
+            // المرحلة 1: سهلة
+            [[1,1,1,1,1,1,1],[1,0,0,1,0,2,1],[1,1,0,1,0,1,1],[1,0,0,0,0,1,1],[1,1,1,1,1,1,1]],
+            // المرحلة 2: متوسطة
+            [[1,1,1,1,1,1,1,1,1],[1,0,1,0,0,0,1,0,1],[1,0,1,0,1,0,1,0,1],[1,0,0,0,1,0,0,0,1],[1,1,1,0,1,1,1,0,1],[1,0,0,0,0,0,0,2,1],[1,1,1,1,1,1,1,1,1]],
+            // المرحلة 3: أصعب
+            [[1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,1,0,0,0,0,1],[1,1,1,1,0,1,0,1,1,0,1],[1,0,0,0,0,0,0,1,0,0,1],[1,0,1,1,1,1,1,1,0,1,1],[1,0,0,0,0,0,1,2,0,1,1],[1,1,1,1,1,1,1,1,1,1,1]],
+            // المرحلة 4: كبيرة
+            [[1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,1,0,0,0,1,0,0,0,0,0,1],[1,0,1,0,1,0,1,0,1,1,1,0,1],[1,0,0,0,1,0,0,0,1,0,0,0,1],[1,1,1,0,1,1,1,0,1,0,1,1,1],[1,0,0,0,0,0,1,0,0,0,0,2,1],[1,1,1,1,1,1,1,1,1,1,1,1,1]],
+            // المرحلة 5: المتاهة المستحيلة (تم تحديثها لتكون معقدة جداً)
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+                [1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,0,1,1,1,0,1,0,1,1,1],
+                [1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,1],
+                [1,1,1,1,1,0,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+                [1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1],
+                [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ]
+        ];
+
+        function initLevel() {
+            let maze = levels[currentLevel];
+            canvas.width = maze[0].length * tileSize;
+            canvas.height = maze.length * tileSize;
+            player = { x: 1, y: 1 };
+            document.getElementById('currentLevel').innerText = currentLevel + 1;
+            render();
+        }
+
+        // عداد الوقت
+        const timerInterval = setInterval(() => {
+            if (gameActive) {
+                time--;
+                document.getElementById('timer').innerText = time;
+                if (time <= 0) {
+                    endGame(false, "انتهى الوقت!", "حاول ان تكون اسرع");
+                }
+            }
+        }, 1000);
+
+        function drawMaze() {
+            let maze = levels[currentLevel];
+            for(let r=0; r<maze.length; r++) {
+                for(let c=0; c<maze[r].length; c++) {
+                    if(maze[r][c] === 1) {
+                        ctx.fillStyle = "#1a1a2e";
+                        ctx.fillRect(c*tileSize, r*tileSize, tileSize, tileSize);
+                    } else if(maze[r][c] === 2) {
+                        ctx.fillStyle = "#d4af37";
+                        ctx.shadowBlur = 15; ctx.shadowColor = "#d4af37";
+                        ctx.fillRect(c*tileSize, r*tileSize, tileSize, tileSize);
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = "#d4af37";
+            ctx.shadowBlur = 10; ctx.shadowColor = "gold";
+            ctx.fillRect(player.x*tileSize + 5, player.y*tileSize + 5, tileSize - 10, tileSize - 10);
+            ctx.shadowBlur = 0;
+        }
+
+        function move(dir) {
+            if(!gameActive) return;
+            let maze = levels[currentLevel];
+            let newX = player.x;
+            let newY = player.y;
+
+            if(dir === 'up') newY--;
+            if(dir === 'down') newY++;
+            if(dir === 'left') newX--;
+            if(dir === 'right') newX++;
+
+            if(maze[newY] && maze[newY][newX] !== 1) {
+                player.x = newX;
+                player.y = newY;
+            }
+
+            if(maze[player.y][player.x] === 2) {
+                if(currentLevel < 4) {
+                    currentLevel++;
+                    initLevel();
+                } else {
+                    endGame(true, "نصر عظيم!", "لقد تغلبت على جميع المتاهات!");
+                }
+            }
+            render();
+        }
+
+        function endGame(win, title, desc) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            document.getElementById('msgOverlay').style.display = 'flex';
+            document.getElementById('msgTitle').innerText = title;
+            document.getElementById('msgDesc').innerText = desc;
+        }
+
+        window.addEventListener('keydown', e => {
+            if(e.key === "ArrowUp" || e.key === "w") move('up');
+            if(e.key === "ArrowDown" || e.key === "s") move('down');
+            if(e.key === "ArrowLeft" || e.key === "a") move('left');
+            if(e.key === "ArrowRight" || e.key === "d") move('right');
+        });
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMaze();
+            drawPlayer();
+        }
+
+        initLevel();
+    </script>
+</body>
+</html>
