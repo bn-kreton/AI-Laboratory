@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Math Core | نواة الرياضيات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; background: #050507; color: white; 
+            font-family: 'Cairo', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* إخفاء أسهم السكرول */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .game-card {
+            background: #0f0f12; border: 2px solid #d4af37;
+            padding: 40px; border-radius: 20px; text-align: center;
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.1); width: 450px;
+            transition: transform 0.2s cubic-bezier(.36,.07,.19,.97);
+        }
+
+        /* تأثير الاهتزاز */
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            border-color: #ff4e4e !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .status-bar { display: flex; justify-content: space-between; margin-bottom: 20px; color: #d4af37; font-size: 0.9rem; }
+        .total-time { color: #888; margin-bottom: 10px; font-size: 0.8rem; }
+
+        .equation { font-size: 2.8rem; margin: 20px 0; color: white; direction: ltr; display: inline-block; min-height: 80px;}
+
+        input {
+            background: transparent; border: 2px solid #d4af37;
+            color: white; font-size: 2rem; width: 160px; text-align: center;
+            border-radius: 10px; font-family: 'Cairo'; outline: none;
+        }
+
+        .btn-check {
+            margin-top: 25px; padding: 12px 45px; background: #d4af37;
+            color: black; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; font-family: 'Cairo'; font-size: 1.1rem;
+        }
+
+        .feedback { margin-top: 15px; min-height: 25px; font-weight: bold; }
+        .correct { color: #4eff4e; }
+        .wrong { color: #ff4e4e; }
+    </style>
+</head>
+<body>
+
+    <h1 style="color:#d4af37; margin-bottom: 5px;">MATH CORE</h1>
+    <div class="total-time">الوقت الإجمالي: <span id="gameTimer">0</span> ثانية</div>
+
+    <div class="game-card" id="gameCard">
+        <div class="status-bar">
+            <span id="operationType">العملية: الجمع</span>
+            <span id="levelLabel">المستوى: سهل</span>
+        </div>
+
+        <div class="equation" id="equationDisplay"></div>
+
+        <br>
+        <input type="number" id="answerInput" placeholder="؟" autocomplete="off">
+        <br>
+        <button class="btn-check" onclick="checkAnswer()">تحقق من الناتج</button>
+
+        <div id="feedback" class="feedback"></div>
+    </div>
+
+    <script>
+        let currentMode = 'plus';
+        let difficulty = 1; 
+        let correctAnswer = 0;
+        let totalSeconds = 0;
+        let gameActive = true;
+
+        const timerInterval = setInterval(() => {
+            if(gameActive) {
+                totalSeconds++;
+                document.getElementById('gameTimer').innerText = totalSeconds;
+            }
+        }, 1000);
+
+        function generateQuestion() {
+            let displayStr = "";
+            let card = document.getElementById('gameCard');
+            card.classList.remove('shake'); // إزالة الاهتزاز عند توليد سؤال جديد
+            
+            if (difficulty === 1) {
+                let n1 = Math.floor(Math.random() * 9) + 1;
+                let n2 = Math.floor(Math.random() * 9) + 1;
+                calculate(n1, n2);
+                displayStr = `${n1} ${getSymbol()} ${n2} =`;
+            } 
+            else if (difficulty === 2) {
+                let n1 = Math.floor(Math.random() * 80) + 11;
+                let n2 = Math.floor(Math.random() * 80) + 11;
+                calculate(n1, n2);
+                displayStr = `${n1} ${getSymbol()} ${n2} =`;
+            } 
+            else if (difficulty === 3) {
+                if(currentMode === 'divide') {
+                    let res = Math.floor(Math.random() * 12) + 2;
+                    let divisor = Math.floor(Math.random() * 15) + 10;
+                    let bigNum = res * divisor;
+                    correctAnswer = res;
+                    displayStr = `${bigNum} ÷ ${divisor} =`;
+                } else {
+                    let n1 = Math.floor(Math.random() * 20) + 5;
+                    let n2 = Math.floor(Math.random() * 30) + 10;
+                    let n3 = Math.floor(Math.random() * 15) + 5;
+                    calculateTriple(n1, n2, n3);
+                    displayStr = `${n1} ${getSymbol()} ${n2} ${getSymbol()} ${n3} =`;
+                }
+            }
+
+            document.getElementById('equationDisplay').innerText = displayStr;
+            document.getElementById('answerInput').value = '';
+            document.getElementById('answerInput').focus();
+            document.getElementById('feedback').innerText = '';
+        }
+
+        function getSymbol() {
+            if(currentMode === 'plus') return '+';
+            if(currentMode === 'minus') return '-';
+            return '÷';
+        }
+
+        function calculate(n1, n2) {
+            if(currentMode === 'plus') correctAnswer = n1 + n2;
+            if(currentMode === 'minus') correctAnswer = n1 - n2; // يقبل السالب الآن
+            if(currentMode === 'divide') {
+                let res = Math.floor(Math.random() * 8) + 2;
+                correctAnswer = res;
+                let bigNum = res * n2;
+                // تأخير بسيط للتحديث لضمان دقة العرض
+                setTimeout(() => { document.getElementById('equationDisplay').innerText = `${bigNum} ÷ ${n2} =`; }, 10);
+            }
+        }
+
+        function calculateTriple(n1, n2, n3) {
+            if(currentMode === 'plus') correctAnswer = n1 + n2 + n3;
+            if(currentMode === 'minus') correctAnswer = n1 - n2 - n3; // يقبل السالب الآن
+        }
+
+        function checkAnswer() {
+            let userAnswer = parseInt(document.getElementById('answerInput').value);
+            let feedback = document.getElementById('feedback');
+            let card = document.getElementById('gameCard');
+
+            if (userAnswer === correctAnswer) {
+                feedback.innerHTML = "✅ إجابة ممتازة!";
+                feedback.className = "feedback correct";
+                card.classList.remove('shake');
+                
+                if (difficulty < 3) {
+                    difficulty++;
+                } else {
+                    difficulty = 1;
+                    if (currentMode === 'plus') currentMode = 'minus';
+                    else if (currentMode === 'minus') currentMode = 'divide';
+                    else {
+                        finishGame();
+                        return;
+                    }
+                }
+                
+                updateUI();
+                setTimeout(generateQuestion, 800);
+            } else {
+                feedback.innerHTML = "❌ خطأ في الحساب، ركز!";
+                feedback.className = "feedback wrong";
+                
+                // تفعيل الاهتزاز
+                card.classList.remove('shake');
+                void card.offsetWidth; // حيلة تقنية لإعادة تشغيل الأنيميشن
+                card.classList.add('shake');
+            }
+        }
+
+        function finishGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            document.getElementById('equationDisplay').innerHTML = "✨ تـم تنشيـط النـواة!";
+            alert(`مبروك! أنهيت المهمة في ${totalSeconds} ثانية.`);
+            location.reload();
+        }
+
+        function updateUI() {
+            let opLabel = currentMode === 'plus' ? 'الجمع' : currentMode === 'minus' ? 'الطرح' : 'القسمة';
+            document.getElementById('operationType').innerText = "العملية: " + opLabel;
+            let diffText = difficulty === 1 ? 'سهل' : difficulty === 2 ? 'متوسط' : 'صعب';
+            document.getElementById('levelLabel').innerText = "المستوى: " + diffText;
+        }
+
+        document.getElementById('answerInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkAnswer();
+        });
+
+        generateQuestion();
+    </script>
+</body>
+</html>
