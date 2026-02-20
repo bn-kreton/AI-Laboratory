@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini’s Pulse | Neon Paradox</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Cairo:wght@600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --blue: #00f2ff;
+            --pink: #ff007b;
+            --bg: #050505;
+        }
+
+        body { 
+            margin: 0; background: var(--bg); color: white; 
+            font-family: 'Cairo', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 900px; height: 500px;
+            background: #000;
+            border: 2px solid #222;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        canvas { display: block; }
+
+        .game-ui {
+            position: absolute; top: 20px; width: 100%;
+            display: flex; justify-content: space-around;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem; pointer-events: none;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        #instructions {
+            position: absolute; bottom: 20px; width: 100%;
+            text-align: center; color: #555; font-size: 0.9rem;
+        }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85); z-index: 100;
+            transition: 0.5s;
+        }
+
+        .hidden { display: none !important; }
+
+        .btn-start {
+            padding: 15px 40px; font-size: 1.5rem; background: none;
+            border: 2px solid var(--blue); color: var(--blue);
+            cursor: pointer; font-family: 'Orbitron'; transition: 0.3s;
+            box-shadow: 0 0 15px var(--blue);
+        }
+
+        .btn-start:hover {
+            background: var(--blue); color: black;
+            box-shadow: 0 0 30px var(--blue);
+        }
+
+        #state-indicator {
+            position: absolute; bottom: 40px; left: 40px;
+            width: 60px; height: 60px; border-radius: 50%;
+            border: 4px solid white; transition: 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="font-family:'Orbitron'; color: var(--blue); letter-spacing: 5px; margin-bottom: 10px;">GEMINI'S PULSE</h1>
+
+    <div id="game-container">
+        <div class="game-ui">
+            <div id="score">SCORE: 0000</div>
+            <div id="highScore">BEST: 0000</div>
+        </div>
+
+        <canvas id="pulseCanvas"></canvas>
+        <div id="state-indicator"></div>
+
+        <div id="startScreen" class="screen">
+            <h2 style="color: var(--blue); font-size: 2.5rem;">NEON PARADOX</h2>
+            <p style="color: #888; margin-bottom: 20px;">انقر لتغيير لونك. اعبر من خلال العقبات التي تطابق لونك فقط!</p>
+            <button class="btn-start" onclick="initGame()">IGNITE PULSE</button>
+        </div>
+
+        <div id="gameOverScreen" class="screen hidden">
+            <h2 style="color: var(--pink); font-size: 3rem;">PULSE LOST</h2>
+            <p id="finalScore" style="font-size: 1.5rem;"></p>
+            <button class="btn-start" style="border-color: var(--pink); color: var(--pink); box-shadow: 0 0 15px var(--pink);" onclick="initGame()">RETRY</button>
+        </div>
+    </div>
+
+    <div id="instructions">اضغط SPACE أو انقر على الشاشة لتغيير اللون</div>
+
+    <script>
+        const canvas = document.getElementById('pulseCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 900; canvas.height = 500;
+
+        let gameActive = false;
+        let score = 0;
+        let best = localStorage.getItem('geminiBest') || 0;
+        let gameSpeed = 5;
+        let frameCount = 0;
+
+        const colors = { blue: '#00f2ff', pink: '#ff007b' };
+        
+        let player = {
+            x: 150, y: 250, radius: 20,
+            colorState: 'blue', // الحالة اللونية: blue أو pink
+            pulseSize: 0
+        };
+
+        let obstacles = [];
+
+        function initGame() {
+            score = 0;
+            gameSpeed = 5;
+            obstacles = [];
+            gameActive = true;
+            player.colorState = 'blue';
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('highScore').innerText = `BEST: ${best}`;
+            updatePulse();
+        }
+
+        // تبديل اللون
+        function toggleColor() {
+            if(!gameActive) return;
+            player.colorState = player.colorState === 'blue' ? 'pink' : 'blue';
+            player.pulseSize = 40; // تأثير نبضة عند التغيير
+        }
+
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') toggleColor(); });
+        canvas.addEventListener('mousedown', toggleColor);
+
+        function createObstacle() {
+            if (frameCount % 80 === 0) {
+                const isBlue = Math.random() > 0.5;
+                const h = 150 + Math.random() * 200;
+                const yPos = Math.random() > 0.5 ? 0 : canvas.height - h;
+                
+                obstacles.push({
+                    x: canvas.width,
+                    y: yPos,
+                    w: 40,
+                    h: h,
+                    color: isBlue ? 'blue' : 'pink'
+                });
+            }
+        }
+
+        function update() {
+            if(!gameActive) return;
+
+            frameCount++;
+            score += 1;
+            document.getElementById('score').innerText = `SCORE: ${Math.floor(score/10).toString().padStart(4, '0')}`;
+            
+            // زيادة الصعوبة
+            gameSpeed += 0.001;
+
+            if(player.pulseSize > 0) player.pulseSize -= 2;
+
+            obstacles.forEach((obs, index) => {
+                obs.x -= gameSpeed;
+
+                // منطق التصادم الفريد
+                if (player.x + player.radius > obs.x && 
+                    player.x - player.radius < obs.x + obs.w &&
+                    player.y + player.radius > obs.y && 
+                    player.y - player.radius < obs.y + obs.h) {
+                    
+                    // إذا كان لون اللاعب مختلف عن لون العقبة = خسارة
+                    if (player.colorState !== obs.color) {
+                        endGame();
+                    }
+                }
+
+                if(obs.x + obs.w < 0) obstacles.splice(index, 1);
+            });
+
+            createObstacle();
+            updatePulseIndicator();
+        }
+
+        function updatePulseIndicator() {
+            const indicator = document.getElementById('state-indicator');
+            indicator.style.backgroundColor = colors[player.colorState];
+            indicator.style.boxShadow = `0 0 20px ${colors[player.colorState]}`;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)'; // تأثير الذيل (Motion Blur)
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // رسم اللاعب
+            ctx.shadowBlur = 15 + player.pulseSize;
+            ctx.shadowColor = colors[player.colorState];
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // هالة اللون حول اللاعب
+            ctx.strokeStyle = colors[player.colorState];
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // رسم العقبات
+            ctx.shadowBlur = 10;
+            obstacles.forEach(obs => {
+                ctx.shadowColor = colors[obs.color];
+                ctx.fillStyle = colors[obs.color];
+                
+                // العقبة تبدو كشعاع ليزر
+                ctx.globalAlpha = 0.8;
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                ctx.globalAlpha = 1.0;
+                
+                // قلب العقبة أبيض ليعطي إحساس النيون
+                ctx.fillStyle = 'white';
+                ctx.fillRect(obs.x + 15, obs.y, 10, obs.h);
+            });
+
+            ctx.shadowBlur = 0;
+        }
+
+        function endGame() {
+            gameActive = false;
+            if(score/10 > best) {
+                best = Math.floor(score/10);
+                localStorage.setItem('geminiBest', best);
+            }
+            document.getElementById('finalScore').innerText = `PULSE DEPLETED AT: ${Math.floor(score/10)}`;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+
+        function updatePulse() {
+            if(!gameActive) return;
+            update();
+            draw();
+            requestAnimationFrame(updatePulse);
+        }
+
+        // رسم خلفية شبكية خفيفة لجمالية النيون
+        function drawGrid() {
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=50) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<canvas.height; i+=50) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+        }
+        
+        // تشغيل الخلفية عند التحميل
+        setInterval(() => {
+            if(!gameActive) {
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                drawGrid();
+            }
+        }, 100);
+
+    </script>
+</body>
+</html>
