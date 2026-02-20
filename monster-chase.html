@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Shadow Pursuit | مطاردة الفراغ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; background: #000; color: white; 
+            font-family: 'Cairo', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 1000px; height: 500px; 
+            border: 3px solid #333;
+            background: linear-gradient(to right, #050000, #0a0a0a);
+            overflow: hidden;
+            touch-action: none;
+            transition: background 2s;
+        }
+
+        canvas { display: block; }
+
+        .ui-overlay {
+            position: absolute; top: 15px; width: 100%;
+            display: flex; justify-content: space-around;
+            pointer-events: none; color: #d4af37; font-size: 1.4rem;
+            z-index: 10;
+        }
+
+        #jump-btn {
+            position: absolute; bottom: 40px; right: 40px;
+            width: 90px; height: 90px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            color: white; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 20;
+            transition: 0.1s;
+        }
+        #jump-btn:active { transform: scale(0.9); background: rgba(255, 0, 0, 0.3); }
+
+        .overlay-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; z-index: 100;
+            text-align: center;
+        }
+
+        .hidden { display: none !important; }
+
+        button.main-btn {
+            padding:15px 40px; margin-top: 20px; cursor:pointer; font-family:'Cairo'; 
+            background:#ff4d4d; border:none; color:white; font-weight:bold; border-radius:8px;
+            font-size: 1.2rem; box-shadow: 0 0 20px rgba(255,0,0,0.4);
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1 id="gameTitle" style="color:#ff4d4d; margin-bottom: 10px; text-shadow: 0 0 10px #f00;">SHADOW PURSUIT</h1>
+    
+    <div id="game-container">
+        <div id="uiOverlay" class="ui-overlay hidden">
+            <div>المسافة: <span id="distScore">0</span>m</div>
+            <div id="dangerBox">الخطر: <span id="dangerLevel" style="color:#0f0">آمن</span></div>
+            <div>الإصطدامات: <span id="hitCounter">0</span></div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+        <div id="jump-btn" class="hidden">قفز</div>
+
+        <div id="startScreen" class="overlay-screen">
+            <h2 style="color:#f3ff4d; font-size: 2.5rem;">هروب من الفراغ</h2>
+            <p>لا تدع وحش فراغ يقضي عليك!!</p>
+            <button class="main-btn" onclick="startGame()">ابدأ الرحلة</button>
+        </div>
+
+        <div id="roundWinScreen" class="overlay-screen hidden">
+            <h2 style="color:#0f0; font-size: 2.5rem;">مبروك! تخطيت الجولة الأولى</h2>
+            <p>هل أنت مستعد للجولة اللانهائية؟ (ضربة واحدة تنهي اللعبة!)</p>
+            <button class="main-btn" style="background:rgb(48, 173, 208); color:#000" onclick="startRound2()">استمر للتحدي</button>
+        </div>
+
+        <div id="gameOver" class="overlay-screen hidden">
+            <h2 style="color:#ff4d4d; font-size: 3rem;">لقد هدرت</h2>
+            <div id="finalScoreLose" style="font-size: 1.5rem; color: #d4af37;"></div>
+            <div id="finalHits" style="font-size: 1.2rem; color: #aaa;"></div>
+            <button class="main-btn" onclick="location.reload()">حاول مجدداً</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1000; canvas.height = 500;
+
+        let score = 0;
+        let gameActive = false;
+        let isRound2 = false;
+        let hits = 0;
+        
+        let monsterPenalty = 0; 
+        let monsterX = -300; 
+        let obstacleTimer = 0;
+        let minObstacleInterval = 85; 
+        
+        let player = { 
+            x: 400, y: 400, w: 40, h: 40, 
+            dy: 0, jumpPower: -16, gravity: 0.56, 
+            grounded: false 
+        };
+        
+        let obstacles = [];
+        let gameSpeed = 3.5;
+
+        function startGame() {
+            gameActive = true;
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('uiOverlay').classList.remove('hidden');
+            document.getElementById('jump-btn').classList.remove('hidden');
+            loop();
+        }
+
+        function startRound2() {
+            isRound2 = true;
+            gameActive = true;
+            score = 2500; // تأكيد المسافة
+            obstacles = []; // تنظيف الشاشة
+            document.getElementById('roundWinScreen').classList.add('hidden');
+            document.getElementById('game-container').style.background = "linear-gradient(to right, #0a001a, #1a0033)";
+            document.getElementById('gameTitle').style.color = "#a0f";
+            document.getElementById('dangerBox').classList.add('hidden'); // إخفاء الخطر لأن الوحش اختفى
+            loop();
+        }
+
+        function startJump() {
+            if(player.grounded && gameActive) {
+                player.dy = player.jumpPower;
+                player.grounded = false;
+            }
+        }
+        function endJump() { if(player.dy < -6) player.dy = -6; }
+
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') startJump(); });
+        window.addEventListener('keyup', (e) => { if(e.code === 'Space') endJump(); });
+        const jumpBtn = document.getElementById('jump-btn');
+        jumpBtn.addEventListener('mousedown', startJump);
+        jumpBtn.addEventListener('mouseup', endJump);
+        jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startJump(); });
+        jumpBtn.addEventListener('touchend', (e) => { e.preventDefault(); endJump(); });
+
+        function createObstacle() {
+            obstacleTimer++;
+            if(obstacleTimer > minObstacleInterval) {
+                // في الجولة الأولى فقط يتوقف عند 2500
+                if(!isRound2 && score >= 2450) return;
+
+                if(Math.random() < 0.04) { 
+                    let type = Math.random();
+                    
+                    // توليد عدو جوي في الجولة الثانية فقط
+                    if(isRound2 && type > 0.6) {
+                        obstacles.push({ x: canvas.width, y: 300, w: 40, h: 30, hit: false, isAir: true });
+                    } else {
+                        let isDouble = Math.random() < 0.3;
+                        if(isDouble) {
+                            obstacles.push({ x: canvas.width, y: 400, w: 30, h: 60, hit: false, isAir: false });
+                            obstacles.push({ x: canvas.width + 30, y: 400, w: 30, h: 60, hit: false, isAir: false });
+                        } else {
+                            obstacles.push({ x: canvas.width, y: 400, w: 30, h: 60, hit: false, isAir: false });
+                        }
+                    }
+                    obstacleTimer = 0;
+                }
+            }
+        }
+
+        function update() {
+
+            if(!gameActive) return;
+
+            score += 0.2;
+            document.getElementById('distScore').innerText = Math.floor(score);
+            
+            // --- الزيادة التدريجية للسرعة بعد الجولة الأولى ---
+            if(isRound2) {
+                // ستبدأ السرعة بـ 4.5 وتزداد بمقدار 0.1 لكل 100 متر تقريباً
+                gameSpeed = 3 + (score - 2500) * 0.001; 
+                
+                // لجعل الأمر عادلاً، نزيد المسافة بين العقبات أيضاً لكي لا تتراكم فوق بعضها
+                minObstacleInterval = Math.max(40, 85 - (score - 2500) * 0.005);
+            }
+
+
+
+            if(!gameActive) return;
+
+            score += 0.2;
+            document.getElementById('distScore').innerText = Math.floor(score);
+            document.getElementById('hitCounter').innerText = hits;
+
+            // التحقق من نهاية الجولة الأولى
+            if(!isRound2 && score >= 2500) {
+                gameActive = false;
+                document.getElementById('roundWinScreen').classList.remove('hidden');
+                return;
+            }
+
+            player.dy += player.gravity;
+            player.y += player.dy;
+            if(player.y > 400) { player.y = 400; player.dy = 0; player.grounded = true; }
+
+            // منطق الوحش (الجولة الأولى فقط)
+            if(!isRound2) {
+                if (monsterPenalty > 0) monsterPenalty -= 0.15; 
+                monsterX = -350 + (score * 0.2) + (monsterPenalty * 6);
+                
+                let gap = player.x - (monsterX + 180);
+                const dangerLabel = document.getElementById('dangerLevel');
+                if(gap < 130) {
+                    dangerLabel.innerText = "حرِج!"; dangerLabel.style.color = "#f00";
+                    canvas.style.boxShadow = "inset 0 0 60px #f00";
+                } else if(gap < 280) {
+                    dangerLabel.innerText = "متوسط"; dangerLabel.style.color = "#ff0";
+                    canvas.style.boxShadow = "inset 0 0 30px #440";
+                } else {
+                    dangerLabel.innerText = "آمن"; dangerLabel.style.color = "#0f0";
+                    canvas.style.boxShadow = "none";
+                }
+
+                if(monsterX + 180 >= player.x) endGame();
+            }
+
+            obstacles.forEach((obs, index) => {
+                obs.x -= gameSpeed + (isRound2 ? 1 : 0); // زيادة طفيفة في السرعة بالجولة 2
+                
+                if(!obs.hit && player.x < obs.x + obs.w && player.x + player.w > obs.x &&
+                   player.y < obs.y + obs.h && player.y + player.h > obs.y) {
+                    
+                    if(isRound2) {
+                        endGame(); // موت فوري في الجولة الثانية
+                    } else {
+                        hits++;
+                        monsterPenalty += 20; 
+                        obs.hit = true; 
+                    }
+                }
+                if(obs.x + obs.w < 0) obstacles.splice(index, 1);
+            });
+            createObstacle();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = isRound2 ? "#50f" : "#333";
+            ctx.beginPath(); ctx.moveTo(0, 440); ctx.lineTo(1000, 440); ctx.stroke();
+
+            // اللاعب
+            ctx.fillStyle = "white";
+            ctx.shadowBlur = 20; ctx.shadowColor = isRound2 ? "magenta" : "cyan";
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.shadowBlur = 0;
+
+            // الوحش (يختفي في الجولة 2)
+            if(!isRound2) {
+                ctx.fillStyle = "black";
+                ctx.shadowBlur = 60; ctx.shadowColor = "red";
+                ctx.beginPath();
+                ctx.moveTo(monsterX, 0);
+                ctx.lineTo(monsterX + 200 + Math.sin(score*2.5)*30, 250);
+                ctx.lineTo(monsterX, 500);
+                ctx.fill();
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(monsterX + 150, 250 + Math.sin(score*3)*15, 15, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // العقبات
+            obstacles.forEach(obs => {
+                if(obs.isAir) {
+                    ctx.fillStyle = "#0af"; // لون العدو الجوي
+                    ctx.shadowBlur = 10; ctx.shadowColor = "#0cf";
+                } else {
+                    ctx.fillStyle = obs.hit ? "#222" : "#ff4d4d";
+                    ctx.shadowBlur = 0;
+                }
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            });
+        }
+
+        function endGame() { 
+            gameActive = false; 
+            document.getElementById('finalScoreLose').innerText = `المسافة المقطوعة: ${Math.floor(score)}m`;
+            document.getElementById('finalHits').innerText = `عدد الإصطدامات: ${hits}`;
+            document.getElementById('gameOver').classList.remove('hidden'); 
+            document.getElementById('jump-btn').classList.add('hidden');
+        }
+
+        function loop() { if(!gameActive) return; update(); draw(); requestAnimationFrame(loop); }
+        draw();
+    </script>
+</body>
+</html>
